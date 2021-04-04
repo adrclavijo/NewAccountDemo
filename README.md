@@ -18,4 +18,6 @@ Also the query needed to return a List in order to avoid a duplicated entry exce
 
 Multiple currencies are admitted, but in order to transfer money both accounts have to share the same currency.
 
+Rest routes are stored in a own class, so they are easier to read and also easier to build JUnit tests for controllers
+
 Unit testing built with JUnit 4.
