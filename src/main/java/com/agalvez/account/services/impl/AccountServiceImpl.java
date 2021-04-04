@@ -52,8 +52,8 @@ public class AccountServiceImpl implements IAccountService {
 	}
 
 	/**
-	 * Private method just for internal use. As the code remains the same, the getAccount
-	 * method will also call this one
+	 * Private method just for internal use. As the code remains the same, the
+	 * getAccount method will also call this one
 	 * 
 	 * @param {@link Long} id
 	 * @return {@link Account}
@@ -64,6 +64,7 @@ public class AccountServiceImpl implements IAccountService {
 			return accountRepository.findById(id)
 					.orElseThrow(() -> new AccountNotFoundException("Account with ID " + id + " cannot be found"));
 		} catch (Exception e) {
+			rethrowingOwnExceptions(e);
 			logger.error("Database error: {}", e.getMessage());
 			throw new AccountBadRequestException("An error has occurred");
 		}
@@ -92,6 +93,7 @@ public class AccountServiceImpl implements IAccountService {
 				return new AccountDTO(accountList.get(0));
 			}
 		} catch (Exception e) {
+			rethrowingOwnExceptions(e);
 			logger.error("Database error: {}", e.getMessage());
 			throw new AccountBadRequestException("An error has occurred");
 		}
@@ -101,32 +103,53 @@ public class AccountServiceImpl implements IAccountService {
 	@Transactional
 	@Override
 	public TransferResponseDTO transfer(TransferDTO transfer) throws Exception {
-		if (null == transfer) {
-			throw new AccountBadRequestException("Invalid transfer data values");
-		} else if (transfer.getOriginAccountId() != null
-				&& transfer.getOriginAccountId().equals(transfer.getDestinationAccountId())) {
-			throw new AccountBadRequestException("Both accounts are the same one");
-		} else {
-			Account origin = recoverAccount(transfer.getOriginAccountId());
-			Account destination = recoverAccount(transfer.getDestinationAccountId());
-			if (origin.getBalance() < transfer.getAmount() && !origin.isTreasury()) {
-				throw new AccountForbiddenException("The origin account has not enough balance for this transfer");
+		try {
+			if (null == transfer) {
+				throw new AccountBadRequestException("Invalid transfer data values");
+			} else if (transfer.getOriginAccountId() != null
+					&& transfer.getOriginAccountId().equals(transfer.getDestinationAccountId())) {
+				throw new AccountBadRequestException("Both accounts are the same one");
+			} else {
+				if (transfer.getAmount() < 0) {
+					throw new AccountBadRequestException("Only positive transfer amounts are allowed");
+				}
+				Account origin = recoverAccount(transfer.getOriginAccountId());
+				Account destination = recoverAccount(transfer.getDestinationAccountId());
+				if (origin.getBalance() < transfer.getAmount() && !origin.isTreasury()) {
+					throw new AccountForbiddenException("The origin account has not enough balance for this transfer");
+				}
+				// different currency check
+				if (!origin.getCurrency().equals(destination.getCurrency())) {
+					throw new AccountForbiddenException("The currency for both accounts is not the same");
+				}
+
+				origin.setBalance(origin.getBalance() - transfer.getAmount());
+				destination.setBalance(destination.getBalance() + transfer.getAmount());
+
+				TransferResponseDTO response = new TransferResponseDTO();
+				response.setAmount(transfer.getAmount());
+				response.setCurrency(origin.getCurrency());
+				response.setOriginAccount(accountRepository.save(origin));
+				response.setDestinationAccount(accountRepository.save(destination));
+
+				return response;
 			}
-			// different currency check
-			if (!origin.getCurrency().equals(destination.getCurrency())) {
-				throw new AccountForbiddenException("The currency for both accounts is not the same");
-			}
+		} catch (Exception e) {
+			rethrowingOwnExceptions(e);
+			logger.error("Database error: {}", e.getMessage());
+			throw new AccountBadRequestException("An error has occurred");
+		}
 
-			origin.setBalance(origin.getBalance() - transfer.getAmount());
-			destination.setBalance(destination.getBalance() + transfer.getAmount());
-
-			TransferResponseDTO response = new TransferResponseDTO();
-			response.setAmount(transfer.getAmount());
-			response.setCurrency(transfer.getCurrency());
-			response.setOriginAccount(accountRepository.save(origin));
-			response.setDestinationAccount(accountRepository.save(destination));
-
-			return response;
+	}
+	
+	/**
+	 * Checks if the exception thrown is ours or another else
+	 * @param e
+	 * @throws Exception
+	 */
+	private void rethrowingOwnExceptions(Exception e) throws Exception {
+		if (e.getClass().getCanonicalName().contains("Account")) {
+			throw e;
 		}
 	}
 

@@ -5,8 +5,6 @@ import javax.validation.constraints.NotNull;
 
 import org.springframework.validation.annotation.Validated;
 
-import com.agalvez.account.persistence.enums.CurrencyEnum;
-
 import lombok.Data;
 import lombok.ToString;
 
@@ -20,9 +18,6 @@ public class TransferDTO {
 	
 	@NotNull
 	private Long destinationAccountId;
-	
-	@NotNull
-	private CurrencyEnum currency;
 	
 	@NotNull
 	@Min(0)
